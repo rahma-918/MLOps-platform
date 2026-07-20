@@ -10,3 +10,5 @@ chroma_db/
 *.db
 *.sqlite3
 .ipynb_checkpoints/
+eval/results_*.csv
+mlruns/
