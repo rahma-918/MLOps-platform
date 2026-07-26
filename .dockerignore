@@ -1,0 +1,14 @@
+# .dockerignore
+.venv/
+__pycache__/
+*.pyc
+.env
+data/raw/*
+data/processed/*
+chroma_db/
+mlflow.db
+mlruns/
+.git/
+.gitignore
+eval/results_*.csv
+*.md

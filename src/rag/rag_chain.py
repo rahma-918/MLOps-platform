@@ -87,19 +87,30 @@ def build_rag_chain(k: int = 5):
 
     # On retourne aussi model_name, pour que ask() puisse le réutiliser
     # sans jamais le recoder en dur ailleurs dans le module.
-    return llm, retriever, model_name
+    return llm, retriever, vectorstore, model_name
 
 
-def ask(question: str, llm, retriever, model_name: str, show_sources: bool = True, use_multi_query: bool = True, use_reranking: bool = True):
+def ask(question: str, llm, retriever, vectorstore, model_name: str,
+        show_sources: bool = True, use_multi_query: bool = True,
+        use_reranking: bool = True, category_filter: str = None, k: int = 20):
     print(f"\n Question : {question}")
     print("-" * 60)
 
-    if use_multi_query:
-        docs = multi_query_retrieve(question, retriever, llm_model_name=model_name, n_variants=3)
+    # --- Retrieval, avec ou sans filtre par catégorie ---
+    if category_filter:
+        # Recherche directe filtrée par métadonnée : ignore le multi-query
+        # dans ce cas pour rester simple (le filtre s'applique telle quelle
+        # sur la question originale).
+        docs = vectorstore.similarity_search(
+            question, k=k, filter={"category": category_filter}
+        )
+    elif use_multi_query:
+        docs = multi_query_retrieve(question, retriever, model_name, n_variants=3)
     else:
         docs = retriever.invoke(question)
+
     if use_reranking:
-        docs = rerank_documents(question, docs, top_k=5)
+        docs = rerank_documents(question, docs, top_k=8)
 
     context = format_docs_for_prompt(docs)
     answer_language = detect_question_language(question)
@@ -111,10 +122,7 @@ def ask(question: str, llm, retriever, model_name: str, show_sources: bool = Tru
     )
 
     rate_limiter.wait_if_needed()
-    response = llm.generate_content(
-        final_prompt,
-        generation_config={"temperature": 0}
-    )
+    response = llm.generate_content(final_prompt, generation_config={"temperature": 0})
     answer = response.text
 
     print(f"\n Réponse :\n{answer}")

@@ -2,7 +2,7 @@ from src.rag.rag_chain import build_rag_chain, ask
 
 if __name__ == "__main__":
     print("Construction de la chaîne RAG (connexion à Gemini, chargement de la base)...")
-    llm, retriever, model_name = build_rag_chain(k=20)
+    llm, retriever, vectorstore, model_name = build_rag_chain(k=20)
 
     questions = [
         "What are the adverse events of COVID-19 vaccination in pregnant women?",
@@ -12,5 +12,5 @@ if __name__ == "__main__":
     ]
 
     for question in questions:
-        ask(question, llm, retriever, model_name, use_multi_query=True)
+        ask(question, llm, retriever, vectorstore, model_name, use_multi_query=True)
         print("\n" + "=" * 60)

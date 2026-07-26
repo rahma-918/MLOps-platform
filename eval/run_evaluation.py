@@ -16,6 +16,7 @@ REFUSAL_MARKERS = [
     "cannot find", "can not find", "do not find", "don't find",
     "does not contain", "doesn't contain",
     "not provided in", "no information", "not available in",
+    "cannot provide information", "does not contain data", 
     "je ne trouve pas", "ne contient pas", "n'est pas fourni",
     "n'ai pas trouvé", "aucune information",
 ]
@@ -165,12 +166,12 @@ if __name__ == "__main__":
         "rerank_top_k": 8,
         "use_multi_query": False,
         "use_reranking": True,
-        "chunk_size": 500,       # doit rester cohérent avec ta config d'ingestion actuelle
+        "chunk_size": 500,       # doit rester cohérent avec la config d'ingestion actuelle
         "chunk_overlap": 50,
         "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
     }
 
-    with mlflow.start_run(run_name="reranking_k20to8_v2"):
+    with mlflow.start_run(run_name="corpus_enrichi_v2_fragments_corriges"):
         # 1. On enregistre tous les paramètres de configuration du run
         mlflow.log_params(config)
 

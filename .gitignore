@@ -12,3 +12,5 @@ chroma_db/
 .ipynb_checkpoints/
 eval/results_*.csv
 mlruns/
+mlflow.db
+hf_cache/

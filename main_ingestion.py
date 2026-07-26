@@ -2,7 +2,7 @@
 """
 Script d'ingestion : Chargement -> Chunking -> Embeddings -> Stockage vectoriel
 """
-
+from src.classification.classifier import classify_document
 from src.ingestion.loader import load_all_documents
 from src.ingestion.chunker import convert_to_langchain_documents, chunk_documents
 from src.ingestion.embedder import get_embedding_model
@@ -19,6 +19,35 @@ def reset_vectorstore(persist_directory: str = "chroma_db"):
     else:
         print(f"Aucune base vectorielle existante trouvée dans '{persist_directory}' (premier lancement).")
 
+def enrich_chunks_with_category(chunks):
+    """
+    Classifie chaque document source une seule fois (à partir de ses
+    premiers chunks), puis applique cette catégorie à TOUS les chunks
+    de ce document
+    """
+    # Regroupe les chunks par document source
+    chunks_by_source = {}
+    for chunk in chunks:
+        source = chunk.metadata["source_file"]
+        chunks_by_source.setdefault(source, []).append(chunk)
+
+    category_by_source = {}
+    for source, source_chunks in chunks_by_source.items():
+        # Utilise les 2-3 premiers chunks (triés par page/section) comme extrait
+        sorted_chunks = sorted(source_chunks, key=lambda c: c.metadata.get("page_number", 0))
+        excerpt = "\n".join(c.page_content for c in sorted_chunks[:3])
+
+        print(f"  Classification de {source}...")
+        result = classify_document(excerpt)
+        category_by_source[source] = result["category"]
+        print(f"    -> {result['category']} (confiance: {result['confidence']})")
+
+    # Applique la catégorie à chaque chunk de son document
+    for chunk in chunks:
+        source = chunk.metadata["source_file"]
+        chunk.metadata["category"] = category_by_source[source]
+
+    return chunks
 
 if __name__ == "__main__":
     print("=" * 60)
@@ -41,9 +70,12 @@ if __name__ == "__main__":
     print("\n[3/4] Chargement du modèle d'embeddings...")
     embedding_model = get_embedding_model()
 
+    # enrichissement avec la catégorie
+    print("\n[3.5/4] Classification des documents pour enrichissement des métadonnées...")
+    chunks = enrich_chunks_with_category(chunks)
+
     # 4. Stockage vectoriel
     print("\n[4/4] Génération et stockage des vecteurs dans ChromaDB...")
     build_vectorstore(chunks, embedding_model)
 
     print("\n✅ Ingestion terminée. Base vectorielle prête dans 'chroma_db/'.")
-    print("Utilise test_search.py pour interroger la base.")

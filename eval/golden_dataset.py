@@ -100,4 +100,19 @@ GOLDEN_DATASET = [
     "expected_source": "article1.pdf",
     "category": "table_extraction",
 },
+
+{
+    "id": "Q7",
+    "question": "What was the effect of text messaging reminders on influenza vaccine uptake?",
+    "expected_fragment": "9%",  
+    "expected_source": "rct_txt4flujab.pdf",
+    "category": "factual",
+},
+{
+    "id": "Q8",
+    "question": "What adverse event was reported in the myocardial injury case report following COVID-19 vaccination?",
+    "expected_fragment": "congestive heart failure", 
+    "expected_source": "case_report_myocardial_injury.pdf",
+    "category": "factual",
+},
 ]
