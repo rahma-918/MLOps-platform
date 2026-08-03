@@ -1,22 +1,46 @@
 # schemas pydantic definit la structure des requetes et réponses de l'API
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 
 
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    full_name: Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # minutes
+
+
+class UserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 class AskRequest(BaseModel):
-    question: str = Field(..., min_length=3, description="La question à poser au RAG")
-    use_multi_query: bool = Field(default=False, description="Active la reformulation multiple de la question")
-    use_reranking: bool = Field(default=True, description="Active le reranking des chunks par cross-encoder")
-    category_filter: Optional[str] = Field(
+    question: str = Field(..., min_length=3)
+    use_multi_query: bool = Field(default=False)
+    use_reranking: bool = Field(default=True)
+    category_filter: Optional[str] = Field(default=None)
+    document_id_filter: Optional[str] = Field(
         default=None,
-        description="Restreint la recherche aux documents de cette catégorie (ex. 'systematic_review_meta_analysis'). Si non fourni, cherche dans tout le corpus."
+        description="Restreint la recherche à un document uploadé précis (retourné par /documents/upload)."
     )
-    conversation_id: Optional[uuid.UUID] = Field(
-        default=None,
-        description="ID de conversation existante pour poursuivre l'historique. Si non fourni, une nouvelle conversation est créée."
-    )
+    domain_filter: Optional[str] = Field(default=None, description="Force le domaine de classification")
+    conversation_id: Optional[uuid.UUID] = Field(default=None)
     class Config:
         json_schema_extra = {
             "example": {
@@ -24,6 +48,7 @@ class AskRequest(BaseModel):
                 "use_multi_query": False,
                 "use_reranking": True,
                 "category_filter": "systematic_review_meta_analysis",
+                "domain_filter": None,
                 "conversation_id": None
             }
         }
@@ -50,22 +75,25 @@ class HealthResponse(BaseModel):
     llm_model: str
 
 class ClassifyRequest(BaseModel):
-    """Corps de la requête pour classifier un extrait de document."""
-    document_excerpt: str = Field(..., min_length=20, description="Extrait représentatif du document (titre, abstract, début d'introduction)")
+    document_excerpt: str = Field(..., min_length=20)
+    forced_domain: Optional[str] = Field(default=None, description="Force un domaine : medical, general, technical, legal")
+    use_llm_domain: bool = Field(default=True, description="Utilise Gemini pour détecter le domaine (sinon heuristique rapide)")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "document_excerpt": "Systematic Review and Meta-Analysis: Safety of COVID-19 Vaccines Among Pregnant Women..."
+                "document_excerpt": "Systematic Review and Meta-Analysis...",
+                "forced_domain": None,
+                "use_llm_domain": True
             }
         }
 
 
 class ClassifyResponse(BaseModel):
-    """Réponse renvoyée par l'API après classification d'un document."""
     category: str
     confidence: str
     justification: str
+    domain: str = "general"  
 
 
 class MessageResponse(BaseModel):
@@ -75,6 +103,7 @@ class MessageResponse(BaseModel):
     content: str
     sources: Optional[list] = None
     category_filter: Optional[str] = None
+    document_id_filter: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -100,3 +129,18 @@ class ConversationSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DocumentUploadResponse(BaseModel):
+    """Réponse après upload et traitement d'un document."""
+    document_id: str
+    filename: str
+    category: str
+    confidence: str
+    chunks_count: int
+
+
+class UploadedDocumentInfo(BaseModel):
+    """Résumé d'un document uploadé, pour lister ceux disponibles."""
+    document_id: str
+    filename: str
+    category: str

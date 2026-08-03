@@ -92,12 +92,21 @@ def build_rag_chain(k: int = 5):
 
 def ask(question: str, llm, retriever, vectorstore, model_name: str,
         show_sources: bool = True, use_multi_query: bool = True,
-        use_reranking: bool = True, category_filter: str = None, k: int = 20):
+        use_reranking: bool = True, category_filter: str = None, document_id_filter: str = None, k: int = 20):
     print(f"\n Question : {question}")
     print("-" * 60)
 
+        # --- 1. Filtre par document spécifique (prioritaire) ---
+    if document_id_filter:
+        # Recherche directe filtrée sur la métadonnée source_file
+        docs = vectorstore.similarity_search(
+            question,
+            k=k,
+            filter={"document_id": document_id_filter}
+        )
+        print(f"  Filtre actif : document = {document_id_filter}")
     # --- Retrieval, avec ou sans filtre par catégorie ---
-    if category_filter:
+    elif category_filter:
         # Recherche directe filtrée par métadonnée : ignore le multi-query
         # dans ce cas pour rester simple (le filtre s'applique telle quelle
         # sur la question originale).
@@ -127,6 +136,7 @@ def ask(question: str, llm, retriever, vectorstore, model_name: str,
 
     print(f"\n Réponse :\n{answer}")
 
+    sources = []
     if show_sources:
         sources = set(
             f"{doc.metadata.get('source_file')} (page/section {doc.metadata.get('page_number')})"
@@ -135,3 +145,9 @@ def ask(question: str, llm, retriever, vectorstore, model_name: str,
         print(f"\n Sources consultées ({len(docs)} chunks) :")
         for source in sorted(sources):
             print(f"  - {source}")
+    return {
+        "answer": answer,
+        "sources": list(sources),
+        "language_detected": answer_language,
+        "chunks_used": len(docs)
+    }

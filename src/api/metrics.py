@@ -6,14 +6,14 @@ from prometheus_client import Counter, Histogram
 rag_questions_total = Counter(
     "rag_questions_total",
     "Nombre total de questions posées au RAG",
-    ["use_reranking", "use_multi_query", "has_category_filter"]
+    ["use_reranking", "use_multi_query", "has_category_filter", "has_document_filter"]
 )
 
 # Compte les classifications effectuées, par catégorie retournée
 classification_total = Counter(
     "classification_total",
     "Nombre total de documents classifiés",
-    ["category"]
+    ["category", "domain"]
 )
 
 # Mesure le temps passé spécifiquement dans la génération LLM (pas la latence HTTP totale)

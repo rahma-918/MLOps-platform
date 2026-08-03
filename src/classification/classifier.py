@@ -1,40 +1,36 @@
-#Module de classification zero-shot de documents scientifiques, via l'API Gemini
+# src/classification/classifier.py
+"""
+Module de classification zero-shot générique.
+1. Détecte le domaine du document
+2. Charge la taxonomie appropriée
+3. Classifie dans la catégorie la plus pertinente
+"""
 
 import os
 import json
 from dotenv import load_dotenv
 import google.generativeai as genai
 from src.rag.rate_limiter import rate_limiter
+from src.classification.taxonomies import TAXONOMIES, DEFAULT_TAXONOMY
+from src.classification.domain_detector import detect_domain
 
 load_dotenv()
 
-# Taxonomie des catégories possibles, avec leur description -- cette
-# description est injectée dans le prompt pour aider le LLM à bien
-# distinguer les catégories proches (ex. revue systématique vs méta-analyse).
-TAXONOMY = {
-    "systematic_review_meta_analysis": "Revue systématique incluant une méta-analyse : synthèse de plusieurs études avec calcul statistique groupé (odds ratio, risque relatif, forest plot...)",
-    "systematic_review": "Revue systématique sans méta-analyse formelle : synthèse qualitative structurée de plusieurs études, sans calcul statistique combiné",
-    "narrative_review": "Revue narrative ou de littérature non systématique : synthèse générale d'un sujet sans méthodologie de recherche systématique documentée (pas de PRISMA, pas de critères d'inclusion/exclusion formels)",
-    "randomized_controlled_trial": "Essai clinique randomisé contrôlé (RCT) : intervention testée avec répartition aléatoire des participants entre groupes",
-    "cohort_study": "Étude de cohorte : suivi d'un groupe de participants dans le temps (prospective ou rétrospective) pour observer la survenue d'événements",
-    "cross_sectional_study": "Étude transversale : collecte de données à un instant T, sans suivi dans le temps (ex. enquête, sondage, prévalence)",
-    "case_control_study": "Étude cas-témoins : comparaison entre un groupe ayant l'issue étudiée et un groupe n'ayant pas cette issue",
-    "case_report": "Étude de cas ou série de cas cliniques individuels, sans groupe de comparaison",
-    "clinical_guideline": "Recommandation clinique officielle ou guideline émise par une société savante, un ministère, ou une organisation de santé",
-    "editorial_commentary": "Éditorial, commentaire, lettre à l'éditeur, ou opinion d'expert, sans données originales de recherche",
-    "technical_report": "Rapport technique ou institutionnel (ex. rapport de surveillance épidémiologique, rapport gouvernemental)",
-    "other": "Tout autre type de document ne correspondant à aucune des catégories ci-dessus",
-}
 
-
-CLASSIFICATION_PROMPT_TEMPLATE = """You are an assistant specialized in classifying medical scientific documents.
+def build_prompt(taxonomy: dict, document_excerpt: str) -> str:
+    """Construit le prompt de classification pour une taxonomie donnée."""
+    categories_description = "\n".join(
+        f"- {key} : {desc}" for key, desc in taxonomy.items()
+    )
+    
+    return f"""You are an assistant specialized in classifying documents.
 
 Here are the possible categories, with their definitions:
 {categories_description}
 
-Here is an excerpt from the document to classify (title, abstract, and beginning of introduction/methods):
+Here is an excerpt from the document to classify (title, abstract, and beginning):
 
-{document_excerpt}
+{document_excerpt[:3000]}
 
 Respond ONLY in the following JSON format, with no text before or after:
 {{
@@ -45,62 +41,83 @@ Respond ONLY in the following JSON format, with no text before or after:
 """
 
 
-def build_categories_description() -> str:
-    """Formate la taxonomie en texte lisible pour le prompt."""
-    return "\n".join(f"- {key} : {desc}" for key, desc in TAXONOMY.items())
-
-
-def classify_document(document_excerpt: str, model_name: str = None) -> dict:
+def classify_document(
+    document_excerpt: str,
+    model_name: str = None,
+    forced_domain: str = None,
+    use_llm_domain: bool = True
+) -> dict:
     """
-    Classifie un document à partir d'un extrait représentatif (idéalement
-    le titre, l'abstract, et le début de l'introduction)
-
+    Classifie un document de manière générique.
+    
     Args:
-        document_excerpt: extrait de texte représentatif du document
-        model_name: nom du modèle Gemini à utiliser (par défaut, lit .env)
-
+        document_excerpt: extrait représentatif (titre + abstract + début)
+        model_name: modèle Gemini à utiliser
+        forced_domain: force un domaine spécifique (medical, general, technical, legal)
+                        Si None, détection automatique.
+        use_llm_domain: si True, utilise Gemini pour détecter le domaine.
+                        Si False, heuristique rapide (offline).
+    
     Returns:
-        Dictionnaire avec les clés "category", "confidence", "justification".
-        En cas d'erreur de parsing, "category" vaut "other" par défaut.
+        dict avec "category", "confidence", "justification", "domain"
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY manquante dans .env")
 
+    # --- Étape 1 : Détection du domaine ---
+    if forced_domain and forced_domain in TAXONOMIES:
+        domain = forced_domain
+    else:
+        domain = detect_domain(document_excerpt, use_llm=use_llm_domain)
+    
+    taxonomy = TAXONOMIES.get(domain, TAXONOMIES[DEFAULT_TAXONOMY])
+    
+    print(f"  [Classification] Domaine détecté : {domain} ({len(taxonomy)} catégories)")
+
+    # --- Étape 2 : Classification dans la taxonomie du domaine ---
     genai.configure(api_key=api_key)
     model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
     model = genai.GenerativeModel(model_name)
 
-    prompt = CLASSIFICATION_PROMPT_TEMPLATE.format(
-        categories_description=build_categories_description(),
-        document_excerpt=document_excerpt[:3000],  # limite pour ne pas envoyer un document entier
-    )
+    prompt = build_prompt(taxonomy, document_excerpt)
 
     rate_limiter.wait_if_needed()
     response = model.generate_content(prompt, generation_config={"temperature": 0})
 
     raw_text = response.text.strip()
 
-    # Nettoyage : Gemini peut parfois entourer le JSON de balises markdown
-    # (```json ... ```) malgré la consigne -- on les retire si présentes.
+    # Nettoyage markdown
     if raw_text.startswith("```"):
-        raw_text = raw_text.strip("`")
-        raw_text = raw_text.replace("json", "", 1).strip()
+        raw_text = raw_text.strip("`").replace("json", "", 1).strip()
 
     try:
         result = json.loads(raw_text)
     except json.JSONDecodeError:
-        print(f" Échec du parsing JSON de la réponse : {raw_text[:200]}")
+        print(f"  Échec parsing JSON : {raw_text[:200]}")
         result = {
             "category": "other",
             "confidence": "low",
             "justification": "Erreur de parsing de la réponse du modèle",
         }
 
-    # Validation : si le modèle a halluciné une catégorie inexistante,
-    # on retombe sur "other" plutôt que de propager une valeur invalide.
-    if result.get("category") not in TAXONOMY:
-        print(f" Catégorie inconnue retournée : {result.get('category')}, repli sur 'other'")
+    # Validation catégorie
+    if result.get("category") not in taxonomy:
+        print(f"  Catégorie inconnue : {result.get('category')}, repli sur 'other'")
         result["category"] = "other"
 
+    # Enrichissement du résultat
+    result["domain"] = domain
     return result
+
+
+def classify_batch(excerpts: list[str], **kwargs) -> list[dict]:
+    """
+    Classifie plusieurs documents en séquence.
+    Utile pour l'ingestion par lot.
+    """
+    results = []
+    for i, excerpt in enumerate(excerpts):
+        print(f"[{i+1}/{len(excerpts)}] Classification...")
+        results.append(classify_document(excerpt, **kwargs))
+    return results

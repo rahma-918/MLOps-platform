@@ -1,0 +1,86 @@
+/* frontend/src/index.css */
+
+:root {
+  /* --- Couleurs --- */
+  --bg-app: #0d1512;
+  --bg-panel: #151e1a;
+  --bg-panel-elevated: #1b2621;
+  --bg-hover: #1f2b25;
+  --border-subtle: #26332c;
+
+  --text-primary: #eef2f0;
+  --text-secondary: #9fb0a8;
+  --text-muted: #647169;
+
+  --accent-teal: #2dd4a7;
+  --accent-teal-dim: #1f9c7a;
+  --accent-user: #6d5dfc;
+  --accent-user-light: #8b5cf6;
+  --accent-amber: #f5a85c;
+  --accent-danger: #e5726b;
+
+  /* --- Typographie --- */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  /* --- Rayons / ombres --- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* --- Layout racine --- */
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;  /* sidebar fixe | contenu fluide */
+  grid-template-rows: 1fr;           /* une seule ligne = toute la hauteur */
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;                  /* empêche le double scroll global */
+}
