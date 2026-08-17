@@ -16,9 +16,12 @@ def get_reranker():
     if _reranker_model is None:
         # Modèle multilingue (entraîné sur mMARCO, incluant le français),
         # cohérent avec le corpus mixte anglais/français du projet.
-        # ms-marco-MiniLM-L-6-v2 (utilisé initialement) est anglais uniquement
-        # et donnerait un reranking peu fiable sur les questions en français.
-        _reranker_model = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+        # device="cpu" explicite pour éviter le bug "meta tensor" rencontré
+        # en environnement CPU-only strict (conteneur Docker sans GPU).
+        _reranker_model = CrossEncoder(
+            "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+            device="cpu",
+        )
     return _reranker_model
 
 
