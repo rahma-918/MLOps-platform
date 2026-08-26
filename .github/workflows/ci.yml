@@ -1,0 +1,47 @@
+name: CI - Vérifications de code
+
+# Déclenche ce workflow à chaque push et à chaque pull request sur main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-syntax-check:
+    name: Vérification syntaxe Python
+    runs-on: ubuntu-latest
+
+    steps:
+      # Récupère le code du dépôt sur la machine virtuelle GitHub
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      # Installe Python sur la machine virtuelle
+      - name: Configuration Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Vérifie que tous les fichiers Python compilent sans erreur de syntaxe
+      # (aurait détecté ton bug d'indentation dans main.py avant même le déploiement !)
+      - name: Vérification de la syntaxe Python
+        run: |
+          python -m py_compile src/api/main.py
+          python -m py_compile src/ingestion/loader.py
+          python -m py_compile src/rag/rag_chain.py
+          python -m py_compile src/database/session.py
+          python -m py_compile src/database/crud.py
+          python -m py_compile src/classification/classifier.py
+
+      # Vérifie que les manifestes Kubernetes sont du YAML valide
+      - name: Vérification syntaxe YAML des manifestes K8s
+        run: |
+          pip install pyyaml
+          python -c "
+          import yaml, glob
+          for f in glob.glob('k8s/*.yaml'):
+              with open(f) as file:
+                  list(yaml.safe_load_all(file))
+              print(f'{f}: OK')
+          "
