@@ -1,6 +1,5 @@
 name: CI - Vérifications de code
 
-# Déclenche ce workflow à chaque push et à chaque pull request sur main
 on:
   push:
     branches: [main]
@@ -13,18 +12,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Récupère le code du dépôt sur la machine virtuelle GitHub
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # Installe Python sur la machine virtuelle
       - name: Configuration Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # Vérifie que tous les fichiers Python compilent sans erreur de syntaxe
-      # (aurait détecté ton bug d'indentation dans main.py avant même le déploiement !)
       - name: Vérification de la syntaxe Python
         run: |
           python -m py_compile src/api/main.py
@@ -34,7 +29,6 @@ jobs:
           python -m py_compile src/database/crud.py
           python -m py_compile src/classification/classifier.py
 
-      # Vérifie que les manifestes Kubernetes sont du YAML valide
       - name: Vérification syntaxe YAML des manifestes K8s
         run: |
           pip install pyyaml
@@ -45,3 +39,42 @@ jobs:
                   list(yaml.safe_load_all(file))
               print(f'{f}: OK')
           "
+
+  build-and-push:
+    name: Build et publication des images Docker
+    runs-on: ubuntu-latest
+    needs: lint-and-syntax-check   # n'exécute ce job QUE si le précédent a réussi
+    if: github.ref == 'refs/heads/main'   # uniquement sur la branche main, pas sur les PR
+
+    permissions:
+      contents: read
+      packages: write   # nécessaire pour pouvoir pousser vers ghcr.io
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Connexion à GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push de l'image API
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/mlops-platform-api:latest
+
+      - name: Build et push de l'image Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/mlops-platform-frontend:latest
+          build-args: |
+            VITE_API_BASE_URL=http://localhost:8000
