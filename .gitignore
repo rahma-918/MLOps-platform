@@ -13,4 +13,5 @@ chroma_db/
 eval/results_*.csv
 mlruns/
 mlflow.db
-hf_cache/
+hf_cache/*.tar
+registry-mirror.toml

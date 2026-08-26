@@ -1,4 +1,5 @@
 import os
+import traceback
 import uuid
 import time
 from datetime import timedelta
@@ -427,6 +428,8 @@ async def upload_document(file: UploadFile = File(...)):
         )
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Erreur lors de l'upload du document : {e}")
         raise HTTPException(status_code=500, detail="Erreur lors du traitement du document")
 

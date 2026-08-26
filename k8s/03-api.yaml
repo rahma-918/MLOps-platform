@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rag-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: mlops-plateform-api:latest
+          imagePullPolicy: Never   # utilise l'image chargée localement via kind load, pas un pull distant
+          ports:
+            - containerPort: 8000
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom: { secretKeyRef: { name: app-secrets, key: GEMINI_API_KEY } }
+            - name: GEMINI_MODEL
+              value: "gemini-3.1-flash-lite"
+            - name: SECRET_KEY
+              valueFrom: { secretKeyRef: { name: app-secrets, key: SECRET_KEY } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: app-secrets, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: app-secrets, key: POSTGRES_PASSWORD } }
+            - name: POSTGRES_DB
+              valueFrom: { secretKeyRef: { name: app-secrets, key: POSTGRES_DB } }
+            - name: POSTGRES_HOST
+              value: "postgres-service"
+            - name: ALLOWED_ORIGINS
+              value: "http://localhost:8080"
+          volumeMounts:
+            - name: chroma-storage
+              mountPath: /app/chroma_db
+            - name: hf-cache
+              mountPath: /root/.cache/huggingface
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+      volumes:
+        - name: chroma-storage
+          persistentVolumeClaim:
+            claimName: chroma-pvc
+        - name: hf-cache
+          persistentVolumeClaim:
+            claimName: hf-cache-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-pvc
+  namespace: rag-platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache-pvc
+  namespace: rag-platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: rag-platform
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 8000
+      targetPort: 8000

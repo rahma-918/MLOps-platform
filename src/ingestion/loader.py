@@ -1,6 +1,6 @@
 # Module de chargement de documents.
 # Supporte : PDF natifs, PDF scannés (via OCR), fichiers Word (.docx), images.
-
+import platform
 from pathlib import Path
 from collections import Counter
 import re
@@ -11,7 +11,8 @@ import io
 from docx import Document as DocxDocument
 
 # Configuration Tesseract
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # si une page PDF contient moins de MIN_TEXT_LENGTH_THRESHOLD caractères de texte natif,
 # on considère qu'elle est scannée (image) et on bascule sur l'OCR.
@@ -221,7 +222,8 @@ def load_docx(filepath: str) -> list[ExtractedPage]:
             sections.append((current_section_title, "\n".join(current_section_text)))
 
     for para in doc.paragraphs:
-        if para.style.name.startswith("Heading"):
+        style_name = para.style.name if para.style else ""
+        if style_name.startswith("Heading"):
             flush_section()
             current_section_title = para.text.strip() or current_section_title
             current_section_text = []
