@@ -1,5 +1,3 @@
-# docker-compose.yml (à la racine du projet)
-
 services:
   postgres:
     image: postgres:16
@@ -69,6 +67,8 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
 
@@ -76,3 +76,4 @@ volumes:
   postgres_data:
   chroma_data:
   hf_cache:
+  grafana_data:
